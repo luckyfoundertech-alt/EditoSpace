@@ -6,7 +6,7 @@
 
 Maintained by **Lucky Dubey**.
 
-Based on the MIT-licensed EditoSpace open-source project. Original copyright and license notices remain in LICENSE.
+Based on the MIT-licensed Canvix open-source project. Original upstream project: https://github.com/mir-ashiq/canvix. Original copyright and license notices remain in LICENSE.
 
 </div>
 
