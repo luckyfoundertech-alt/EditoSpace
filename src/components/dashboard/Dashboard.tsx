@@ -519,7 +519,7 @@ export function Dashboard() {
             </a>
           )}
           <a
-            href="https://github.com/mir-ashiq/canvix"
+            href="https://github.com/luckyfoundertech-alt/editospace"
             target="_blank"
             rel="noreferrer"
             className="w-9 h-9 rounded-full text-white/50 hover:text-white hover:bg-white/10 flex items-center justify-center transition-colors"
@@ -531,8 +531,8 @@ export function Dashboard() {
           <button
             onClick={goLanding}
             className="h-9 w-9 rounded-full cv-topbar-gradient text-white text-[13px] font-bold flex items-center justify-center"
-            aria-label="About Canvix"
-            title="About Canvix"
+            aria-label="About EditoSpace"
+            title="About EditoSpace"
           >
             C
           </button>
@@ -543,7 +543,7 @@ export function Dashboard() {
       {/* ── Header ── */}
       <header className="sticky top-0 z-40 border-b border-white/[0.06] bg-[#1F142E]/90 backdrop-blur-lg">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 h-16 flex items-center gap-3">
-          <button onClick={goLanding} aria-label="Canvix home" className="shrink-0 md:hidden">
+          <button onClick={goLanding} aria-label="EditoSpace home" className="shrink-0 md:hidden">
             <Logo size={26} />
           </button>
           <div className="relative flex-1 max-w-md">
@@ -628,7 +628,7 @@ export function Dashboard() {
                         onClick={async () => {
                           const ok = window.confirm(
                             `Adopt ${legacyCount} legacy design${legacyCount === 1 ? '' : 's'} created before accounts existed?\n\n` +
-                              'Only do this if this Canvix instance (or its shared designs) is yours — ' +
+                              'Only do this if this EditoSpace instance (or its shared designs) is yours — ' +
                               'on a shared deployment, legacy designs may include other people\u2019s work.',
                           )
                           if (!ok) return
@@ -669,15 +669,15 @@ export function Dashboard() {
                   <CircleHelp size={14} /> Help &amp; shortcuts
                 </DropdownMenuItem>
                 <DropdownMenuItem className="gap-2" onClick={goLanding}>
-                  <Info size={14} /> About Canvix
+                  <Info size={14} /> About EditoSpace
                 </DropdownMenuItem>
                 <DropdownMenuItem className="gap-2" asChild>
-                  <a href="https://github.com/mir-ashiq/canvix" target="_blank" rel="noreferrer">
+                  <a href="https://github.com/luckyfoundertech-alt/editospace" target="_blank" rel="noreferrer">
                     <Github size={14} /> GitHub repository
                   </a>
                 </DropdownMenuItem>
                 <DropdownMenuItem className="gap-2" asChild>
-                  <a href="https://github.com/mir-ashiq/canvix/stargazers" target="_blank" rel="noreferrer">
+                  <a href="https://github.com/luckyfoundertech-alt/editospace/stargazers" target="_blank" rel="noreferrer">
                     <Heart size={14} /> Star the project
                   </a>
                 </DropdownMenuItem>
@@ -1173,12 +1173,12 @@ export function Dashboard() {
             <span>© 2026 · MIT License</span>
           </div>
           <a
-            href="https://github.com/mir-ashiq/canvix"
+            href="https://github.com/luckyfoundertech-alt/editospace"
             target="_blank"
             rel="noreferrer"
             className="inline-flex items-center gap-1.5 hover:text-white/80 transition-colors"
           >
-            <Github size={14} /> {isMobile ? 'GitHub' : 'github.com/mir-ashiq/canvix'}
+            <Github size={14} /> {isMobile ? 'GitHub' : 'github.com/luckyfoundertech-alt/editospace'}
           </a>
         </div>
       </footer>
@@ -1243,7 +1243,7 @@ export function Dashboard() {
               </ul>
             </div>
             <a
-              href="https://github.com/mir-ashiq/canvix/discussions"
+              href="https://github.com/luckyfoundertech-alt/editospace/discussions"
               target="_blank"
               rel="noreferrer"
               className="flex items-center gap-2 text-[12px] text-[#02C0CC] hover:underline"
