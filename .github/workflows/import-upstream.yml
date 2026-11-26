@@ -3,8 +3,6 @@ name: Import upstream project
 on:
   push:
     branches: [main]
-    paths:
-      - ".github/workflows/import-upstream.yml"
   workflow_dispatch:
 
 permissions:
@@ -23,24 +21,20 @@ jobs:
         with:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Import complete upstream source
         shell: bash
         run: |
           set -euo pipefail
           git clone --depth 1 https://github.com/mir-ashiq/canvix.git /tmp/canvix-upstream
           rsync -a --delete --exclude='.git' /tmp/canvix-upstream/ "$GITHUB_WORKSPACE/"
-
           python3 - <<'PY'
           import json
           from pathlib import Path
-
           root = Path(".")
           pkg = json.loads((root / "package.json").read_text())
           pkg["name"] = "editospace"
           pkg["description"] = "EditoSpace — professional graphic design and poster creation studio."
           (root / "package.json").write_text(json.dumps(pkg, indent=2) + "\\n")
-
           readme = root / "README.md"
           text = readme.read_text()
           text = text.replace("# Canvix", "# EditoSpace", 1)
@@ -65,10 +59,7 @@ jobs:
           """
           text = intro + text.replace("# Canvix", "", 1)
           readme.write_text(text)
-
-          # Retain the upstream MIT license notice exactly as required by its terms.
           PY
-
           git config user.name "Lucky Dubey"
           git config user.email "361022441+luckyfoundertech-alt@users.noreply.github.com"
           git add -A
