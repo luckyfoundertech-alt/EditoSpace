@@ -20,17 +20,33 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Import complete upstream source
+      - name: Import full source and apply EditoSpace identity
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
         run: |
-          set -euo pipefail
-          git clone --depth 1 https://github.com/mir-ashiq/canvix.git /tmp/canvix-upstream
-          rsync -a --delete --exclude='.git' /tmp/canvix-upstream/ "$GITHUB_WORKSPACE/"
+          set -euxo pipefail
+          git clone --depth 1 https://github.com/mir-ashiq/canvix.git /tmp/upstream
           python3 - <<'PY'
-          import json
+          import json, shutil
           from pathlib import Path
-          root = Path(".")
+          root = Path.cwd()
+          upstream = Path("/tmp/upstream")
+          for item in root.iterdir():
+              if item.name == ".git":
+                  continue
+              if item.is_dir():
+                  shutil.rmtree(item)
+              else:
+                  item.unlink()
+          for item in upstream.iterdir():
+              if item.name == ".git":
+                  continue
+              dest = root / item.name
+              if item.is_dir():
+                  shutil.copytree(item, dest)
+              else:
+                  shutil.copy2(item, dest)
           pkg = json.loads((root / "package.json").read_text())
           pkg["name"] = "editospace"
           pkg["description"] = "EditoSpace — professional graphic design and poster creation studio."
@@ -62,10 +78,8 @@ jobs:
           PY
           git config user.name "Lucky Dubey"
           git config user.email "361022441+luckyfoundertech-alt@users.noreply.github.com"
+          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/luckyfoundertech-alt/EditoSpace.git"
           git add -A
-          if git diff --cached --quiet; then
-            echo "No import changes detected."
-            exit 0
-          fi
-          git commit -m "Import complete Canvix codebase as EditoSpace"
+          git status --short | head -100
+          git commit -m "Import complete source as EditoSpace"
           git push origin HEAD:main
