@@ -1,0 +1,253 @@
+// ─────────────────────────────────────────────────────────────
+// Observability floor (v0.12.5, roadmap H7 — research/V0118-
+// ROADMAP-RESEARCH.md §5.1). Three opt-in, zero-dependency
+// primitives for the self-hoster:
+//
+//   1. Structured request logging — CANVIX_LOG=requests turns every
+//      API request into one JSON line on stdout (method, path,
+//      status, duration). OFF by default: a design tool's server
+//      logs are the self-hoster's to read, and silent-by-default
+//      is the privacy-correct choice. Query strings are
+//      deliberately NOT logged (they carry design ids and cursor
+//      data); IPs are not logged either.
+//   2. /api/health?v=2 — aggregate counts + a DB latency probe
+//      (see src/app/api/health/route.ts). Counts only, never ids.
+//   3. Error webhook — CANVIX_ERROR_WEBHOOK_URL receives a POST
+//      for every unhandled request error (src/instrumentation.ts,
+//      Next's onRequestError hook). Also off unless configured.
+//
+// Everything here is stdlib-only (console, fetch, Date) so it runs
+// on every runtime Canvix supports — Node, Bun, workerd.
+// ─────────────────────────────────────────────────────────────
+
+import type { NextRequest } from 'next/server'
+
+/** The app version answering requests. Baked at build time via
+ *  next.config `env` (v0.29.1) so the standalone `node` deploy on the
+ *  VPS reports a real version — npm_package_version only exists when
+ *  npm itself starts the process, which is why the admin panel used
+ *  to show "unknown" there. */
+export const APP_VERSION =
+  process.env.CANVIX_APP_VERSION || process.env.npm_package_version || 'unknown'
+/** Short git commit the bundle was built from ('' when unknown). */
+export const APP_BUILD_COMMIT = process.env.CANVIX_BUILD_COMMIT || ''
+/** ISO build timestamp ('' when unknown). */
+export const APP_BUILD_TIME = process.env.CANVIX_BUILD_TIME || ''
+
+export type LogLevel = 'debug' | 'info' | 'warn' | 'error'
+
+/** One structured JSON line — machine-greppable, human-readable. */
+export function logLine(level: LogLevel, event: string, fields: Record<string, unknown> = {}): void {
+  const line = JSON.stringify({ ts: new Date().toISOString(), level, event, ...fields })
+  if (level === 'error') console.error(line)
+  else if (level === 'warn') console.warn(line)
+  else console.log(line)
+}
+
+// ── 1. request logging ────────────────────────────────────────
+
+export function requestLoggingEnabled(): boolean {
+  const value = process.env.CANVIX_LOG
+  return value === 'requests' || value === '1' || value === 'true'
+}
+
+/** Path without the query string — privacy: ids and cursors stay out. */
+function loggedPath(url: string): string {
+  const q = url.indexOf('?')
+  return q === -1 ? url : url.slice(0, q)
+}
+
+export interface ApiRequestLog {
+  method: string
+  path: string
+  status: number
+  durationMs: number
+  requestId?: string
+}
+
+export function logApiRequest(entry: ApiRequestLog): void {
+  logLine('info', 'http_request', {
+    method: entry.method,
+    path: loggedPath(entry.path),
+    status: entry.status,
+    duration_ms: Math.round(entry.durationMs * 100) / 100,
+    ...(entry.requestId ? { request_id: entry.requestId } : {}),
+  })
+}
+
+// ── traffic counters (v0.16.1) ───────────────────────────────
+//
+// v0.16 (A1) wired the aggregate counters into withLogging via a
+// static `import { recordTraffic }` — which, through src/lib/db.ts,
+// is the Prisma client. That silently broke this module's v0.12.5
+// contract ("stdlib-only, runs on every runtime"): Next also compiles
+// src/instrumentation.ts for the EDGE runtime, Turbopack followed the
+// new static import into Prisma's query-compiler wasm loader, and
+// `next build` failed on the self-hosted deployer ("The export default
+// was not found in module …raw.wasm") — the failed build wiped
+// .next/standalone under the running process and took canvix.app's
+// static assets down with it.
+//
+// The fix restores the contract: this module stays stdlib-only, and
+// the counter loads lazily behind the documented NEXT_RUNTIME define.
+// In the edge compilation context NEXT_RUNTIME is replaced with
+// "edge" at build time, so the guard folds to `return` and Prisma is
+// never traced into the edge instrumentation bundle. On the Node
+// server (and in vitest, where NEXT_RUNTIME is unset) the import
+// resolves on first request — same fire-and-forget, error-swallowing
+// contract A1 defined.
+function countTraffic(name: string, method: string, status: number): void {
+  if (process.env.NEXT_RUNTIME === 'edge') return
+  void import('@/lib/admin/traffic')
+    .then((m) => m.recordTraffic(name, method, status))
+    .catch(() => {})
+}
+
+// ── live traffic (v0.16.2 A2) ───────────────────────────
+//
+// src/lib/admin/realtime.ts is ZERO-import, db-free and edge-safe, so
+// unlike the DB counters above it can be linked statically without
+// dragging anything into the edge instrumentation bundle. It powers
+// GET /api/admin/realtime (the console's live panel): per-second
+// request/error buckets, per-route minutes, hashed visitors and a
+// latency ring — all in-memory, all bounded (see that module's header).
+import { recordLiveRequest } from '@/lib/admin/realtime'
+
+/** Per-boot salt for visitor hashing — resets each restart, keeps the
+ *  hash non-guessable across boots without storing anything. */
+const VISITOR_SALT = Math.random().toString(36).slice(2)
+
+/**
+ * Privacy-preserving visitor key for the live counters: the client IP
+ * (first x-forwarded-for hop) hashed with the per-boot salt — djb2 is
+ * not a privacy boundary, but the raw IP is never stored anywhere and
+ * the key only ever feeds a COUNT. No IP → 'local' (on-host proxy).
+ */
+export function liveVisitorKey(req: Pick<NextRequest, 'headers'>): string {
+  const ip =
+    req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+    req.headers.get('x-real-ip') ||
+    ''
+  if (!ip) return 'local'
+  let h = 5381
+  const mixed = VISITOR_SALT + ip
+  for (let i = 0; i < mixed.length; i++) h = ((h << 5) + h + mixed.charCodeAt(i)) >>> 0
+  return 'v' + h.toString(36)
+}
+
+/** The live panel's own poll — excluded from the live counters so the
+ *  dashboard's 2-second refresh never becomes the busiest "route". */
+function isRealtimeSelfPoll(name: string): boolean {
+  return name.includes('/api/admin/realtime')
+}
+
+/**
+ * Wrap an API route handler with opt-in request logging AND always-on
+ * aggregate traffic counters (v0.16 A1 — CANVIX_TRAFFIC=0 opts out;
+ * counts only, never ids/IPs/query strings) plus the live in-memory
+ * counters behind the console's real-time panel (v0.16.2 A2). The
+ * stdout log side stays a zero-cost passthrough when CANVIX_LOG is unset (the default): the
+ * wrapper checks once per call and never touches the response otherwise.
+ * Never mutates the response — the handler's headers, streams and
+ * status codes pass through untouched (the SSE route included).
+ */
+export function withLogging<A extends unknown[]>(
+  name: string,
+  handler: (req: NextRequest, ...args: A) => Promise<Response>,
+): (req: NextRequest, ...args: A) => Promise<Response> {
+  return async (req, ...args) => {
+    // v0.16 (A1): aggregate traffic counters — independent of the stdout
+    // switch above. Fire-and-forget by contract (countTraffic swallows
+    // its own errors); counting must never delay or break the response
+    // it counts.
+    const start = now()
+    try {
+      const res = await handler(req, ...args)
+      if (requestLoggingEnabled()) {
+        logApiRequest({
+          method: req.method,
+          path: new URL(req.url).pathname,
+          status: res.status,
+          durationMs: now() - start,
+        })
+      }
+      countTraffic(name, req.method, res.status)
+      if (!isRealtimeSelfPoll(name)) {
+        recordLiveRequest(name, res.status, now() - start, liveVisitorKey(req))
+      }
+      return res
+    } catch (error) {
+      if (requestLoggingEnabled()) {
+        logApiRequest({
+          method: req.method,
+          path: new URL(req.url).pathname,
+          status: 500,
+          durationMs: now() - start,
+        })
+      }
+      countTraffic(name, req.method, 500)
+      if (!isRealtimeSelfPoll(name)) {
+        recordLiveRequest(name, 500, now() - start, liveVisitorKey(req))
+      }
+      throw error
+    }
+  }
+}
+
+const now = (): number =>
+  typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now()
+
+// ── 3. error webhook ──────────────────────────────────────────
+
+export interface ErrorReport {
+  message: string
+  stackHead?: string
+  path: string
+  method: string
+  routeType?: string
+  appVersion: string
+  at: string
+}
+
+/** Build the webhook payload — pure, unit-testable. */
+export function buildErrorReport(
+  error: unknown,
+  request: { path: string; method: string },
+  context?: { routeType?: string },
+): ErrorReport {
+  const err = error instanceof Error ? error : new Error(String(error))
+  return {
+    message: `${err.name}: ${err.message}`.slice(0, 500),
+    stackHead: (err.stack ?? '').split('\n').slice(0, 6).join('\n').slice(0, 1000) || undefined,
+    path: request.path.slice(0, 300),
+    method: request.method,
+    routeType: context?.routeType,
+    appVersion: APP_VERSION,
+    at: new Date().toISOString(),
+  }
+}
+
+/**
+ * Fire-and-forget POST of an error report to CANVIX_ERROR_WEBHOOK_URL.
+ * Returns the fetch promise (callers may void it) — never throws:
+ * a broken webhook must not take the error path down with it.
+ */
+export function postErrorWebhook(report: ErrorReport): Promise<void> {
+  const url = process.env.CANVIX_ERROR_WEBHOOK_URL
+  if (!url) return Promise.resolve()
+  return fetch(url, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(report),
+    signal: AbortSignal.timeout(5_000),
+  })
+    .then(() => undefined)
+    .catch((err) => {
+      // the watcher cannot become the watched — log locally, move on
+      logLine('warn', 'error_webhook_failed', { reason: String(err).slice(0, 200) })
+    })
+}
+
+export function errorWebhookConfigured(): boolean {
+  return Boolean(process.env.CANVIX_ERROR_WEBHOOK_URL)
+}

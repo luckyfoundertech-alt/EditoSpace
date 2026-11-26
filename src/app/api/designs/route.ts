@@ -1,0 +1,264 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { Prisma } from '@/generated/prisma/client'
+import { db } from '@/lib/db'
+import { dbErrorResponse } from '@/lib/db-errors'
+import { getSessionUser } from '@/lib/auth/session'
+import { readAnonToken, newAnonToken, anonKeyHash, setAnonCookie, anonHashFrom } from '@/lib/auth/anon'
+import { isSameOrigin, CSRF_REJECTED } from '@/lib/auth/csrf'
+import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
+import { withLogging } from '@/lib/observability'
+import { recordActive } from '@/lib/admin/traffic'
+import { getSettings } from '@/lib/admin/config'
+
+/** v0.14 (D6): resolve a ?folder= id / POST folderId to a folder the
+ *  CALLER owns, or null. Foreign and absent ids are indistinguishable
+ *  (flat 404 upstream) — folders are private organization, so probing
+ *  ids must not reveal which exist. Returns:
+ *    { ok: true, folderId }  — mine, use it
+ *    { ok: false, status: 400|404 } — reject the request
+ */
+async function resolveOwnFolder(
+  req: NextRequest,
+  ownerId: string | null,
+  rawFolderId: unknown
+): Promise<{ ok: true; folderId: string | null } | { ok: false; status: 400 | 404 }> {
+  if (rawFolderId === undefined || rawFolderId === null) return { ok: true, folderId: null }
+  if (typeof rawFolderId !== 'string' || !rawFolderId) {
+    return { ok: false, status: 400 }
+  }
+  const token = readAnonToken(req)
+  const anonKey = ownerId ? null : token ? anonKeyHash(token) : null
+  if (!ownerId && !anonKey) return { ok: false, status: 404 }
+  const owned = await db.$queryRawUnsafe<{ id: string }[]>(
+    `SELECT id FROM "Folder" WHERE id = $1 AND (
+      ("ownerId" = $2 AND $2 IS NOT NULL) OR ("anonKey" = $3 AND $3 IS NOT NULL))`,
+    rawFolderId,
+    ownerId,
+    anonKey,
+  )
+  if (owned.length === 0) return { ok: false, status: 404 }
+  return { ok: true, folderId: rawFolderId }
+}
+
+// Normalise incoming pages payload (accepts object or legacy JSON string)
+// into a value suitable for the Postgres jsonb column.
+function toPages(value: unknown): Prisma.InputJsonValue {
+  if (typeof value === 'string') {
+    try { return JSON.parse(value) as Prisma.InputJsonValue } catch { return [] }
+  }
+  return (value ?? []) as Prisma.InputJsonValue
+}
+
+// GET /api/designs — list designs (metadata only, newest first)
+// ?trash=1 → only soft-deleted designs; default → only live designs
+// ?cursor=<updatedAt ISO>&id=<designId> → next page (keyset pagination)
+//
+// v0.9 scoping: signed-in users see their designs + ownerless (shared)
+// designs; anonymous visitors see ownerless designs only. Owned designs
+// are private to their account.
+//
+// v0.9.1: each ownerless row carries two flags (the anonKey hash itself is
+// never returned):
+//   claimable — eligible for the per-design "Save to my account" action
+//               (this browser's attribution OR a legacy pre-accounts row)
+//   mine      — attributed to THIS browser; the only rows the bulk
+//               "Save my designs" action will claim
+//
+// v0.9.2 cost fix: the list used to return EVERY matching row including
+// base64 thumbnails — with a crowded shared workspace that was a multi-MB
+// JSON response on every dashboard load (CPU to serialize, bandwidth to
+// ship). It is now keyset-paginated: 60 rows per page, `nextCursor` tells
+// the client there is more. Worst case per page is now ~0.5 MB.
+const DESIGNS_PAGE_SIZE = 60
+
+async function __canvix_get(req: NextRequest) {
+  try {
+    const trash = req.nextUrl.searchParams.get('trash') === '1'
+    const cursor = req.nextUrl.searchParams.get('cursor')
+    const cursorId = req.nextUrl.searchParams.get('id')
+    const user = await getSessionUser(req)
+
+    // v0.16 (A1): opening the dashboard counts as daily activity
+    // (userId for accounts, the pre-hashed anon cookie key otherwise)
+    void recordActive(user?.id ?? anonHashFrom(req))
+
+    // v0.14 (D6): ?folder=<id> — one of the caller's own folders, or a
+    // flat 404. Absent param = "All designs" (unchanged behaviour).
+    let folderFilter: string | null = null
+    if (req.nextUrl.searchParams.has('folder')) {
+      const resolved = await resolveOwnFolder(req, user?.id ?? null, req.nextUrl.searchParams.get('folder'))
+      if (!resolved.ok) return NextResponse.json({ error: 'Folder not found' }, { status: resolved.status })
+      folderFilter = resolved.folderId
+    }
+
+    // Compose scoping + keyset via AND — never spread two `OR` keys into
+    // the same object (the second would silently replace the first and
+    // leak private designs to other accounts).
+    //
+    // v0.26.1 privacy fix: signed-in users used to see EVERY ownerless
+    // design on the deployment ({ ownerId: null }) — on a public instance
+    // that filled the dashboard with strangers' anonymous work. Scoping
+    // is now:
+    //   · the account's own designs, plus
+    //   · ownerless designs attributed to THIS browser (anonKey match —
+    //     your pre-login work still appears after you sign in), plus
+    //   · legacy ownerless rows (anonKey null, pre-attribution) — the
+    //     deliberate self-hoster migration path, still claimable.
+    // Foreign browser-attributed work stays reachable only via share
+    // links (unchanged — see README "Link access").
+    // Anonymous callers keep the same rule keyed on their anon cookie.
+    const myHash = anonHashFrom(req)
+    const filters: Prisma.DesignWhereInput[] = [
+      {
+        OR: [
+          // signed-in: the account's own designs (anonymous: skipped)
+          ...(user ? [{ ownerId: user.id }] : []),
+          // ownerless rows attributed to THIS browser — omitted entirely
+          // when there is no anon cookie (Prisma treats `anonKey: undefined`
+          // as "no filter", which would match every ownerless row)
+          ...(myHash ? [{ ownerId: null, anonKey: myHash }] : []),
+          // legacy pre-attribution rows — the self-hoster migration path
+          { ownerId: null, anonKey: null },
+        ],
+      },
+    ]
+    if (cursor && !Number.isNaN(Date.parse(cursor))) {
+      filters.push({
+        OR: [
+          { updatedAt: { lt: new Date(cursor) } },
+          ...(cursorId ? [{ updatedAt: new Date(cursor), id: { lt: cursorId } }] : []),
+        ],
+      })
+    }
+    const where: Prisma.DesignWhereInput = {
+      deletedAt: trash ? { not: null } : null,
+      AND: filters,
+    }
+    if (folderFilter) where.folderId = folderFilter
+    const designs = await db.design.findMany({
+      where,
+      orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }],
+      take: DESIGNS_PAGE_SIZE + 1,
+      select: {
+        id: true,
+        name: true,
+        width: true,
+        height: true,
+        thumbnail: true,
+        source: true,
+        ownerId: true,
+        anonKey: true,
+        folderId: true,
+        deletedAt: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    })
+    const hasMore = designs.length > DESIGNS_PAGE_SIZE
+    const page = hasMore ? designs.slice(0, DESIGNS_PAGE_SIZE) : designs
+    const last = page[page.length - 1]
+    // myHash is computed above (scoped the query) — reuse it for the flags
+    const out = page.map(({ anonKey, ...d }) => ({
+      ...d,
+      claimable: d.ownerId === null && (anonKey === null || anonKey === myHash),
+      mine: d.ownerId === null && anonKey !== null && anonKey === myHash,
+    }))
+    return NextResponse.json({
+      designs: out,
+      nextCursor:
+        hasMore && last
+          ? { cursor: last.updatedAt.toISOString(), id: last.id }
+          : null,
+    })
+  } catch (error) {
+    return dbErrorResponse(error, 'GET /api/designs')
+  }
+}
+
+// POST /api/designs — create a new design.
+// v0.9: when signed in, the design is owned by the account (private).
+// Anonymous users keep the link-accessible ownerless mode.
+// v0.9.1: anonymous creations are attributed to the creating browser
+// (anonKey = sha256 of the canvix_anon cookie, minted on first use) so
+// adopt-all can never claim someone else's work.
+async function __canvix_post(req: NextRequest) {
+  if (!isSameOrigin(req)) return NextResponse.json(CSRF_REJECTED, { status: 403 })
+  // v0.12.3 (H5): design creation is unauthenticated (anonymous
+  // ownerless mode) — a per-IP cap is the only brake on flooding.
+  const limit = checkRateLimit(req, 'designs:create')
+  if (!limit.ok) return rateLimitResponse(limit)
+  try {
+    const user = await getSessionUser(req)
+
+    // v0.16 (A1): the console's "anonymous editing" switch — anonymous
+    // design CREATION is refused when off. Reading, sharing and exporting
+    // existing designs is untouched; the check is one cached config read.
+    if (!user) {
+      const settings = await getSettings()
+      if (!settings.anonymousEditing) {
+        return NextResponse.json(
+          { error: 'Anonymous editing is disabled on this instance. Sign in to create designs.', code: 'ANON_DISABLED' },
+          { status: 403 }
+        )
+      }
+    }
+
+    const body = await req.json()
+
+    // v0.14 (D6): optional folderId — a design can be born filed into
+    // one of the caller's folders ("create inside folder"). Foreign
+    // ids are a flat 404, the same rule as the move route.
+    const folderResolved = await resolveOwnFolder(req, user?.id ?? null, (body as { folderId?: unknown }).folderId)
+    if (!folderResolved.ok) {
+      return NextResponse.json(
+        folderResolved.status === 404 ? { error: 'Folder not found' } : { error: 'folderId must be a folder id or null.' },
+        { status: folderResolved.status },
+      )
+    }
+
+    if (user) {
+      const design = await db.design.create({
+        data: {
+          name: typeof body.name === 'string' && body.name.trim() ? body.name.trim() : 'Untitled design',
+          width: Number.isFinite(body.width) ? Math.round(body.width) : 1080,
+          height: Number.isFinite(body.height) ? Math.round(body.height) : 1080,
+          pages: toPages(body.pages),
+          source: typeof body.source === 'string' ? body.source.slice(0, 120) : 'blank',
+          thumbnail: typeof body.thumbnail === 'string' ? body.thumbnail : null,
+          ownerId: user.id,
+          folderId: folderResolved.folderId,
+        },
+      })
+      return NextResponse.json(design, { status: 201 })
+    }
+
+    // Anonymous: mint/refresh this browser's attribution, stamp the row.
+    // The folder check above already ran against this browser's cookie —
+    // a folder the anonymous caller does not own never gets here.
+    const token = readAnonToken(req) ?? newAnonToken()
+    const design = await db.design.create({
+      data: {
+        name: typeof body.name === 'string' && body.name.trim() ? body.name.trim() : 'Untitled design',
+        width: Number.isFinite(body.width) ? Math.round(body.width) : 1080,
+        height: Number.isFinite(body.height) ? Math.round(body.height) : 1080,
+        pages: toPages(body.pages),
+        source: typeof body.source === 'string' ? body.source.slice(0, 120) : 'blank',
+        thumbnail: typeof body.thumbnail === 'string' ? body.thumbnail : null,
+        anonKey: anonKeyHash(token),
+        folderId: folderResolved.folderId,
+      },
+    })
+    const res = NextResponse.json(design, { status: 201 })
+    setAnonCookie(res, token)
+    return res
+  } catch (error) {
+    // v0.8: template-opening failures get a classified, actionable payload
+    // (DB_NOT_MIGRATED after a host switch etc.) instead of a bare 500.
+    return dbErrorResponse(error, 'POST /api/designs')
+  }
+}
+
+// v0.12.5 (H7): opt-in request logging wrapper — passthrough
+// unless CANVIX_LOG=requests (see src/lib/observability.ts)
+export const GET = withLogging('GET /api/designs', __canvix_get)
+export const POST = withLogging('POST /api/designs', __canvix_post)
