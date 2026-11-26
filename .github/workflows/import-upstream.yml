@@ -3,61 +3,36 @@ name: Import upstream project
 on:
   push:
     branches: [main]
+    paths:
+      - ".github/workflows/import-upstream.yml"
   workflow_dispatch:
 
 permissions:
   contents: write
 
-concurrency:
-  group: editospace-upstream-import
-  cancel-in-progress: false
-
 jobs:
   import:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout EditoSpace
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Import full source and apply EditoSpace identity
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        shell: bash
+      - uses: actions/checkout@v4
+      - name: Copy project
         run: |
-          set -euxo pipefail
+          set -euo pipefail
           git clone --depth 1 https://github.com/mir-ashiq/canvix.git /tmp/upstream
+          rsync -a --delete --exclude='.git' --exclude='.github' /tmp/upstream/ "$GITHUB_WORKSPACE/"
           python3 - <<'PY'
-          import json, shutil
+          import json
           from pathlib import Path
-          root = Path.cwd()
-          upstream = Path("/tmp/upstream")
-          for item in root.iterdir():
-              if item.name == ".git":
-                  continue
-              if item.is_dir():
-                  shutil.rmtree(item)
-              else:
-                  item.unlink()
-          for item in upstream.iterdir():
-              if item.name == ".git":
-                  continue
-              dest = root / item.name
-              if item.is_dir():
-                  shutil.copytree(item, dest)
-              else:
-                  shutil.copy2(item, dest)
-          pkg = json.loads((root / "package.json").read_text())
-          pkg["name"] = "editospace"
-          pkg["description"] = "EditoSpace — professional graphic design and poster creation studio."
-          (root / "package.json").write_text(json.dumps(pkg, indent=2) + "\\n")
-          readme = root / "README.md"
-          text = readme.read_text()
-          text = text.replace("# Canvix", "# EditoSpace", 1)
-          text = text.replace("Canvix is a browser-based design tool", "EditoSpace is a browser-based design tool", 1)
-          text = text.replace("https://github.com/mir-ashiq/canvix/actions/workflows/ci.yml", "https://github.com/luckyfoundertech-alt/EditoSpace/actions/workflows/ci.yml")
-          text = text.replace("https://github.com/mir-ashiq/canvix", "https://github.com/luckyfoundertech-alt/EditoSpace")
-          intro = """<div align="center">
+          p = Path("package.json")
+          data = json.loads(p.read_text())
+          data["name"] = "editospace"
+          data["description"] = "EditoSpace — professional graphic design and poster creation studio."
+          p.write_text(json.dumps(data, indent=2) + "\n")
+          p = Path("README.md")
+          s = p.read_text().replace("# Canvix", "# EditoSpace", 1)
+          s = s.replace("Canvix is a browser-based design tool", "EditoSpace is a browser-based design tool", 1)
+          s = s.replace("https://github.com/mir-ashiq/canvix", "https://github.com/luckyfoundertech-alt/EditoSpace")
+          header = """<div align="center">
 
           # EditoSpace
 
@@ -65,21 +40,17 @@ jobs:
 
           Maintained by **Lucky Dubey**.
 
-          This project is based on the MIT-licensed Canvix open-source project.
-          Original upstream copyright and MIT license notices are retained in the LICENSE file.
+          Based on the MIT-licensed Canvix open-source project. Original copyright and license notices remain in LICENSE.
 
           </div>
 
           ---
 
           """
-          text = intro + text.replace("# Canvix", "", 1)
-          readme.write_text(text)
+          p.write_text(header + s.replace("# EditoSpace", "", 1))
           PY
           git config user.name "Lucky Dubey"
           git config user.email "361022441+luckyfoundertech-alt@users.noreply.github.com"
-          git remote set-url origin "https://x-access-token:${GH_TOKEN}@github.com/luckyfoundertech-alt/EditoSpace.git"
           git add -A
-          git status --short | head -100
-          git commit -m "Import complete source as EditoSpace"
-          git push origin HEAD:main
+          git commit -m "Import complete project as EditoSpace"
+          git push
