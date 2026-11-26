@@ -2,7 +2,7 @@
   "name": "editospace",
   "version": "0.31.0",
   "private": false,
-  "description": "EditoSpace \u2014 professional graphic design and poster creation studio.",
+  "description": "EditoSpace — professional graphic design and poster creation studio.",
   "scripts": {
     "dev": "next dev -p 3000 2>&1 | tee dev.log",
     "build": "node scripts/build.mjs",
