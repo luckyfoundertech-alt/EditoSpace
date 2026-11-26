@@ -7,22 +7,22 @@ import { Toaster } from "@/components/ui/toaster";
  * indexed — no og:image, twitter:card "summary" (text-only card), no
  * canonical, no sitemap. This block fixes all four. metadataBase makes
  * every generated URL (canonical, og:image, sitemap) absolute and correct
- * in production; SITE_URL is the deployed origin (canvix.app).
+ * in production; SITE_URL is the deployed origin (editospace.app).
  */
 const SITE_URL =
-  process.env.SITE_URL ?? process.env.NEXT_PUBLIC_SITE_URL ?? "https://canvix.app";
+  process.env.SITE_URL ?? process.env.NEXT_PUBLIC_SITE_URL ?? "https://github.com/luckyfoundertech-alt/EditoSpace";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: "Canvix — Design anything, free forever",
-    template: "%s — Canvix",
+    default: "EditoSpace — Professional design studio",
+    template: "%s — EditoSpace",
   },
   description:
-    "Canvix is a free & open-source graphic design tool. Create social posts, presentations, posters, logos and more with a drag-and-drop editor that works on desktop, tablet and mobile.",
-  applicationName: "Canvix",
+    "EditoSpace is a professional graphic design and poster creation studio. Create social posts, presentations, posters, logos and more with a drag-and-drop editor that works on desktop, tablet and mobile.",
+  applicationName: "EditoSpace",
   keywords: [
-    "canvix",
+    "editospace",
     "design tool",
     "open source",
     "canva alternative",
@@ -33,14 +33,14 @@ export const metadata: Metadata = {
     "free design tool",
     "self hosted design tool",
   ],
-  authors: [{ name: "Ashiq Hussain Mir" }],
+  authors: [{ name: "Lucky Dubey" }],
   alternates: { canonical: "/" },
-  icons: { icon: "/canvix.svg" },
+  icons: { icon: "/editospace.svg" },
   openGraph: {
-    title: "Canvix — Design anything, free forever",
+    title: "EditoSpace — Professional design studio",
     description:
       "Free & open-source graphic design tool. A community-built Canva alternative.",
-    siteName: "Canvix",
+    siteName: "EditoSpace",
     type: "website",
     url: "/",
     images: [
@@ -48,13 +48,13 @@ export const metadata: Metadata = {
         url: "/og.png",
         width: 1200,
         height: 630,
-        alt: "Canvix — design anything, free for everyone",
+        alt: "EditoSpace — design anything, free for everyone",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Canvix — Design anything, free forever",
+    title: "EditoSpace — Professional design studio",
     description:
       "Free & open-source graphic design tool. A community-built Canva alternative.",
     images: ["/og.png"],
@@ -106,21 +106,21 @@ export default function RootLayout({
             __html: JSON.stringify({
               "@context": "https://schema.org",
               "@type": "WebApplication",
-              name: "Canvix",
+              name: "EditoSpace",
               url: SITE_URL,
               applicationCategory: "DesignApplication",
               operatingSystem: "Web",
               description:
                 "Free & open-source graphic design tool. Create social posts, presentations, posters, logos and more with a drag-and-drop editor that works on desktop, tablet and mobile.",
               image: `${SITE_URL}/og.png`,
-              logo: `${SITE_URL}/canvix.svg`,
+              logo: `${SITE_URL}/editospace.svg`,
               offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
               isAccessibleForFree: true,
               featureList:
                 "Drag-and-drop editor; 366 free templates; PNG, JPG, WebP, SVG, PDF, PPTX, video and GIF export; AI magic edit, magic write, background removal and translate with your own API keys; real-time collaboration; MCP server for AI agents; self-hosting with Docker",
-              author: { "@type": "Person", name: "Ashiq Hussain Mir" },
+              author: { "@type": "Person", name: "Lucky Dubey" },
               license: "https://opensource.org/licenses/MIT",
-              sameAs: ["https://github.com/mir-ashiq/canvix"],
+              sameAs: ["https://github.com/mir-ashiq/editospace"],
             }),
           }}
         />
