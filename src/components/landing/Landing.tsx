@@ -168,7 +168,7 @@ const TEMPLATE_SHOWCASE = [
 const FAQ = [
   {
     q: 'Is it really free? What’s the catch?',
-    a: 'Really free, MIT licensed. There is no paid tier — no watermarks, no export limits, no locked elements. The hosted instance at canvix.app is the same code you can self-host.',
+    a: 'Really free, MIT licensed. There is no paid tier — no watermarks, no export limits, no locked elements. The hosted instance at editospace.app is the same code you can self-host.',
   },
   {
     q: 'Do I need an account?',
@@ -179,8 +179,8 @@ const FAQ = [
     a: 'Every AI feature has an on-device engine that runs entirely in your browser. The provider-backed engines run server-side, and you can plug in your own API key so your work never spends anyone else’s quota.',
   },
   {
-    q: 'Can AI agents use Canvix?',
-    a: 'Yes — Canvix ships an MCP server. Connect Claude, Cursor or any MCP client to your account and let the agent create and edit designs for you, scoped to your designs only.',
+    q: 'Can AI agents use EditoSpace?',
+    a: 'Yes — EditoSpace ships an MCP server. Connect Claude, Cursor or any MCP client to your account and let the agent create and edit designs for you, scoped to your designs only.',
   },
   {
     q: 'What formats can I export?',
@@ -218,7 +218,7 @@ export function Landing() {
       {/* ── Nav ── */}
       <header className="sticky top-0 z-50 border-b border-black/5 bg-white/80 backdrop-blur-lg">
         <nav className="mx-auto max-w-7xl px-4 sm:px-6 h-16 flex items-center justify-between">
-          <button onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} aria-label="Canvix home">
+          <button onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} aria-label="EditoSpace home">
             <Logo size={30} />
           </button>
           <div className="hidden md:flex items-center gap-1 text-sm font-medium text-muted-foreground">
@@ -229,7 +229,7 @@ export function Landing() {
             <a href="#opensource" className="px-3 py-2 rounded-lg hover:bg-black/5 hover:text-foreground transition">Open source</a>
           </div>
           <div className="flex items-center gap-2">
-            <a href="https://github.com/mir-ashiq/canvix" target="_blank" rel="noreferrer">
+            <a href="https://github.com/luckyfoundertech-alt/editospace" target="_blank" rel="noreferrer">
               <Button variant="ghost" size="sm" className="rounded-full gap-1.5">
                 <Github size={16} /> <span className="hidden sm:inline">GitHub</span>
               </Button>
@@ -263,7 +263,7 @@ export function Landing() {
               <span className="text-brand-gradient">Free for everyone.</span>
             </h1>
             <p className="mx-auto mt-6 max-w-2xl text-base sm:text-lg text-muted-foreground animate-fade-up delay-200">
-              Canvix is the open-source design tool for social posts, presentations, posters, logos and
+              EditoSpace is the open-source design tool for social posts, presentations, posters, logos and
               more — with real-time collaboration and AI that works for you, not against you.
               Drag, drop, export — right in your browser, on any device.
             </p>
@@ -271,7 +271,7 @@ export function Landing() {
               <Button size="lg" className="btn-brand-gradient rounded-full px-8 text-base h-12 gap-2" onClick={goDashboard}>
                 Start designing — it&apos;s free <ArrowRight size={18} />
               </Button>
-              <a href="https://github.com/mir-ashiq/canvix" target="_blank" rel="noreferrer" className="w-full sm:w-auto">
+              <a href="https://github.com/luckyfoundertech-alt/editospace" target="_blank" rel="noreferrer" className="w-full sm:w-auto">
                 <Button size="lg" variant="outline" className="rounded-full px-8 text-base h-12 gap-2 w-full sm:w-auto">
                   <Github size={18} /> Star on GitHub
                 </Button>
@@ -314,11 +314,11 @@ export function Landing() {
           <div className="text-center">
             <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight">
               What the paid tools charge for,{' '}
-              <span className="text-brand-gradient">Canvix gives away</span>
+              <span className="text-brand-gradient">EditoSpace gives away</span>
             </h2>
             <p className="mt-4 text-muted-foreground max-w-2xl mx-auto">
               The features that cost the most elsewhere — collaboration seats, AI credits, team
-              workspaces — are core parts of Canvix, free and open.
+              workspaces — are core parts of EditoSpace, free and open.
             </p>
           </div>
           <div className="mt-12 grid grid-cols-1 lg:grid-cols-3 gap-5">
@@ -344,7 +344,7 @@ export function Landing() {
               Everything you need to <span className="text-brand-gradient">create</span>
             </h2>
             <p className="mt-4 text-center text-muted-foreground max-w-2xl mx-auto">
-              A serious editor, not a toy. Canvix packs the features people actually use from
+              A serious editor, not a toy. EditoSpace packs the features people actually use from
               commercial design tools — minus the price tag.
             </p>
             <div className="mt-12 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -432,12 +432,12 @@ export function Landing() {
                 The design tool that <span className="text-brand-gradient">belongs to you</span>
               </h2>
               <p className="mt-5 text-muted-foreground leading-relaxed">
-                Commercial design tools lock your creativity behind subscriptions. Canvix is
+                Commercial design tools lock your creativity behind subscriptions. EditoSpace is
                 different — the code is on GitHub, the license is MIT, and every design you make
                 is exportable at full quality. Self-host it, fork it, improve it.
               </p>
               <div className="mt-8 flex flex-col sm:flex-row gap-3">
-                <a href="https://github.com/mir-ashiq/canvix" target="_blank" rel="noreferrer">
+                <a href="https://github.com/luckyfoundertech-alt/editospace" target="_blank" rel="noreferrer">
                   <Button size="lg" className="btn-brand-gradient rounded-full px-8 gap-2 h-12 w-full sm:w-auto">
                     <Github size={18} /> View the source
                   </Button>
@@ -458,12 +458,12 @@ export function Landing() {
                 <span className="h-2.5 w-2.5 rounded-full bg-[#FF5C8A]" />
                 <span className="h-2.5 w-2.5 rounded-full bg-[#FFD166]" />
                 <span className="h-2.5 w-2.5 rounded-full bg-[#34C77B]" />
-                <span className="ml-2 text-xs font-medium text-muted-foreground">terminal — canvix</span>
+                <span className="ml-2 text-xs font-medium text-muted-foreground">terminal — editospace</span>
               </div>
               <div className="font-mono text-xs sm:text-sm leading-relaxed bg-[#17181D] p-5 overflow-x-auto">
                 <div className="text-white/40"># clone &amp; run your own Canva alternative</div>
-                <div><span className="text-[#FF5C8A]">$</span> <span className="text-white/90">git clone https://github.com/mir-ashiq/canvix</span></div>
-                <div><span className="text-[#FF5C8A]">$</span> <span className="text-white/90">cd canvix &amp;&amp; bun install</span></div>
+                <div><span className="text-[#FF5C8A]">$</span> <span className="text-white/90">git clone https://github.com/luckyfoundertech-alt/editospace</span></div>
+                <div><span className="text-[#FF5C8A]">$</span> <span className="text-white/90">cd editospace &amp;&amp; bun install</span></div>
                 <div><span className="text-[#FF5C8A]">$</span> <span className="text-white/90">bun run db:push &amp;&amp; bun run db:seed</span></div>
                 <div><span className="text-[#FF5C8A]">$</span> <span className="text-white/90">bun run dev</span></div>
                 <div className="mt-3 text-[#34C77B]">✓ ready on http://localhost:3000</div>
@@ -495,14 +495,14 @@ export function Landing() {
           <div className="flex items-center gap-3">
             <Logo size={24} />
             <span className="text-sm text-muted-foreground">
-              © 2026 Canvix · MIT License
+              © 2026 EditoSpace · MIT License
             </span>
           </div>
           <div className="flex items-center gap-5 text-sm text-muted-foreground">
-            <a href="https://github.com/mir-ashiq/canvix" target="_blank" rel="noreferrer" className="hover:text-foreground transition-colors inline-flex items-center gap-1.5">
+            <a href="https://github.com/luckyfoundertech-alt/editospace" target="_blank" rel="noreferrer" className="hover:text-foreground transition-colors inline-flex items-center gap-1.5">
               <Github size={15} /> GitHub
             </a>
-            <a href="https://github.com/mir-ashiq/canvix#-ai--development-disclosure" target="_blank" rel="noreferrer" className="hover:text-foreground transition-colors">AI Disclosure</a>
+            <a href="https://github.com/luckyfoundertech-alt/editospace#-ai--development-disclosure" target="_blank" rel="noreferrer" className="hover:text-foreground transition-colors">AI Disclosure</a>
             <a href="#features" className="hover:text-foreground transition-colors">Features</a>
             <a href="#faq" className="hover:text-foreground transition-colors">FAQ</a>
           </div>
