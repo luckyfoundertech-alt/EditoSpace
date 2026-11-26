@@ -7,7 +7,7 @@ import { Toaster } from "@/components/ui/toaster";
  * indexed — no og:image, twitter:card "summary" (text-only card), no
  * canonical, no sitemap. This block fixes all four. metadataBase makes
  * every generated URL (canonical, og:image, sitemap) absolute and correct
- * in production; SITE_URL is the deployed origin (editospace.app).
+ * in production; SITE_URL is the deployed EditoSpace origin.
  */
 const SITE_URL =
   process.env.SITE_URL ?? process.env.NEXT_PUBLIC_SITE_URL ?? "https://github.com/luckyfoundertech-alt/EditoSpace";
