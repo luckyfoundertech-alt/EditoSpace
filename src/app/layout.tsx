@@ -120,7 +120,7 @@ export default function RootLayout({
                 "Drag-and-drop editor; 366 free templates; PNG, JPG, WebP, SVG, PDF, PPTX, video and GIF export; AI magic edit, magic write, background removal and translate with your own API keys; real-time collaboration; MCP server for AI agents; self-hosting with Docker",
               author: { "@type": "Person", name: "Lucky Dubey" },
               license: "https://opensource.org/licenses/MIT",
-              sameAs: ["https://github.com/mir-ashiq/editospace"],
+              sameAs: ["https://github.com/luckyfoundertech-alt/EditoSpace"],
             }),
           }}
         />
